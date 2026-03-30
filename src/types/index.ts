@@ -26,8 +26,12 @@ export interface EpssResult {
   date: string | null;
 }
 
-export type Verdict = 'EXPLOIT_ACTIVE' | 'HIGH_RISK' | 'ELEVATED_RISK' | 'LOW_RISK';
-export type Confidence = 'full' | 'partial' | 'stale';
+export type Verdict =
+  | "EXPLOIT_ACTIVE"
+  | "HIGH_RISK"
+  | "ELEVATED_RISK"
+  | "LOW_RISK";
+export type Confidence = "full" | "partial" | "stale";
 
 export interface VerdictResult {
   cve_id: string;

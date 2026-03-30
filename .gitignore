@@ -1,9 +1,10 @@
 # Claude / project meta (not for version control)
 .claude/
 CLAUDE.md
-PRODUCT.md
+CONTEXT.md
 CLAUDE_SESSION.md
 GIT.md
+IMPROVEMENTS.md
 
 # Dependencies
 node_modules/
@@ -18,3 +19,8 @@ dist/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# SQLite cache
+*.db
+*.db-shm
+*.db-wal

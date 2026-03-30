@@ -1,17 +1,18 @@
-// NVD Agent — fetches CVE data from the NIST National Vulnerability Database API v2.0
+// NVD — fetches CVE data from the NIST National Vulnerability Database API v2.0
 
-import type { NvdResult } from '../types/index.js';
-import { fetchWithTimeout } from '../utils/http.js';
-import { logger } from '../utils/logger.js';
+import type { NvdResult } from "../types/index.js";
+import { fetchWithTimeout } from "../utils/http.js";
+import { logger } from "../utils/logger.js";
+import { getCveCache, setCveCache } from "../cache/cve.js";
 
-const NVD_BASE_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0';
+const NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0";
 
 // NVD rate-limits unauthenticated requests to 5 per 30s.
 // Set NVD_API_KEY env var to increase to 50 per 30s (free key from nvd.nist.gov).
 function buildUrl(cveId: string): string {
   const params = new URLSearchParams({ cveId });
-  const apiKey = process.env['NVD_API_KEY'];
-  if (apiKey) params.set('apiKey', apiKey);
+  const apiKey = process.env["NVD_API_KEY"];
+  if (apiKey) params.set("apiKey", apiKey);
   return `${NVD_BASE_URL}?${params.toString()}`;
 }
 
@@ -69,10 +70,16 @@ function extractCvss(metrics: NvdMetrics | undefined): {
 function extractDescription(
   descriptions: Array<{ lang: string; value: string }>,
 ): string | null {
-  return descriptions.find((d) => d.lang === 'en')?.value ?? null;
+  return descriptions.find((d) => d.lang === "en")?.value ?? null;
 }
 
 export async function fetchNvd(cveId: string): Promise<NvdResult> {
+  const cached = getCveCache(cveId, "nvd");
+  if (cached) {
+    logger.info("nvd-agent", "Cache hit", { cveId });
+    return cached;
+  }
+
   const url = buildUrl(cveId);
   const start = Date.now();
 
@@ -80,23 +87,40 @@ export async function fetchNvd(cveId: string): Promise<NvdResult> {
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
-      logger.warn('nvd-agent', `NVD returned ${response.status}`, { cveId });
-      return { cve_id: cveId, cvss_score: null, cvss_severity: null, description: null, published: null, last_modified: null };
+      logger.warn("nvd-agent", `NVD returned ${response.status}`, { cveId });
+      return {
+        cve_id: cveId,
+        cvss_score: null,
+        cvss_severity: null,
+        description: null,
+        published: null,
+        last_modified: null,
+      };
     }
 
     const data = (await response.json()) as NvdApiResponse;
 
     if (!data.totalResults || !data.vulnerabilities?.length) {
-      logger.warn('nvd-agent', 'CVE not found in NVD', { cveId });
-      return { cve_id: cveId, cvss_score: null, cvss_severity: null, description: null, published: null, last_modified: null };
+      logger.warn("nvd-agent", "CVE not found in NVD", { cveId });
+      return {
+        cve_id: cveId,
+        cvss_score: null,
+        cvss_severity: null,
+        description: null,
+        published: null,
+        last_modified: null,
+      };
     }
 
     const cve = data.vulnerabilities[0]!.cve;
     const { score, severity } = extractCvss(cve.metrics);
 
-    logger.info('nvd-agent', 'Fetched NVD data', { cveId, ms: Date.now() - start });
+    logger.info("nvd-agent", "Fetched NVD data", {
+      cveId,
+      ms: Date.now() - start,
+    });
 
-    return {
+    const result: NvdResult = {
       cve_id: cveId,
       cvss_score: score,
       cvss_severity: severity,
@@ -104,9 +128,26 @@ export async function fetchNvd(cveId: string): Promise<NvdResult> {
       published: cve.published,
       last_modified: cve.lastModified,
     };
+
+    setCveCache(cveId, "nvd", result);
+    return result;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error('nvd-agent', 'Fetch failed', { cveId, message });
-    return { cve_id: cveId, cvss_score: null, cvss_severity: null, description: null, published: null, last_modified: null };
+    logger.error("nvd-agent", "Fetch failed", { cveId, message });
+
+    const stale = getCveCache(cveId, "nvd", true);
+    if (stale) {
+      logger.warn("nvd-agent", "Serving stale cache", { cveId });
+      return stale;
+    }
+
+    return {
+      cve_id: cveId,
+      cvss_score: null,
+      cvss_severity: null,
+      description: null,
+      published: null,
+      last_modified: null,
+    };
   }
 }
