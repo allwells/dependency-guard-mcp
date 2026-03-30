@@ -1,0 +1,30 @@
+
+# Claude / project meta (not for version control)
+.claude
+CLAUDE.md
+CONTEXT.md
+CLAUDE_SESSION.md
+GIT.md
+IMPROVEMENTS.md
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# SQLite cache
+*.db
+*.db-shm
+*.db-wal
+
+# Tests
+tests
