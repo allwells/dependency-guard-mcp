@@ -11,7 +11,6 @@ COPY src/ ./src/
 
 RUN bun run build
 
-
 FROM oven/bun:alpine AS runner
 
 WORKDIR /app
@@ -21,8 +20,6 @@ ENV NODE_ENV=production
 COPY package.json ./
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
-
-VOLUME ["/data"]
 
 EXPOSE 8000
 
