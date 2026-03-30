@@ -1,8 +1,10 @@
 // HTTP server — Express with /health and /mcp endpoints.
 
 import express from "express";
+import type { RequestHandler } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { createContextMiddleware } from "@ctxprotocol/sdk";
 import { createMcpServer } from "./mcp.js";
 import { logger } from "./utils/logger.js";
 
@@ -22,10 +24,14 @@ export function startServer(): void {
     });
   });
 
+  // CTX Protocol auth middleware — allows discovery (tools/list) without auth,
+  // requires verified JWT for execution (tools/call)
+  app.use("/mcp", createContextMiddleware() as unknown as RequestHandler);
+
   // MCP endpoint — stateless HTTP Streaming transport (one server+transport per request).
   // No-arg constructor omits sessionIdGenerator, which is stateless mode at runtime.
   // Cast to Transport required: SDK optional property types conflict with exactOptionalPropertyTypes.
-  app.all("/mcp", async (req, res) => {
+  app.post("/mcp", async (req, res) => {
     const server = createMcpServer();
     const transport = new StreamableHTTPServerTransport();
     await server.connect(transport as Transport);
