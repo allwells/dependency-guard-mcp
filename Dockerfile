@@ -17,8 +17,6 @@ FROM oven/bun:alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=8000
-ENV DB_PATH=/data/dependency-guard.db
 
 COPY package.json ./
 COPY --from=builder /app/dist ./dist
