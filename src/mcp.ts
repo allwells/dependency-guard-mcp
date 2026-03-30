@@ -7,6 +7,48 @@ import { logger } from './utils/logger.js';
 
 const CVE_ID_PATTERN = /^CVE-\d{4}-\d{4,}$/i;
 
+const nvdResultSchema = z.object({
+  cve_id: z.string(),
+  cvss_score: z.number().nullable(),
+  cvss_severity: z.string().nullable(),
+  description: z.string().nullable(),
+  published: z.string().nullable(),
+  last_modified: z.string().nullable(),
+});
+
+const cisaResultSchema = z.object({
+  cve_id: z.string(),
+  in_kev: z.boolean(),
+  date_added: z.string().nullable(),
+  due_date: z.string().nullable(),
+  vendor_project: z.string().nullable(),
+  product: z.string().nullable(),
+  required_action: z.string().nullable(),
+});
+
+const epssResultSchema = z.object({
+  cve_id: z.string(),
+  epss_score: z.number().nullable(),
+  percentile: z.number().nullable(),
+  date: z.string().nullable(),
+});
+
+const verdictResultSchema = z.object({
+  cve_id: z.string(),
+  verdict: z.enum(['EXPLOIT_ACTIVE', 'HIGH_RISK', 'ELEVATED_RISK', 'LOW_RISK']),
+  confidence: z.enum(['full', 'partial', 'stale']),
+  cvss_score: z.number().nullable(),
+  epss_score: z.number().nullable(),
+  in_kev: z.boolean(),
+  description: z.string().nullable(),
+  recommended_action: z.string(),
+  sources: z.object({
+    nvd: nvdResultSchema.nullable(),
+    cisa: cisaResultSchema.nullable(),
+    epss: epssResultSchema.nullable(),
+  }),
+});
+
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: 'dependency-guard',
@@ -24,6 +66,7 @@ export function createMcpServer(): McpServer {
           .string()
           .regex(CVE_ID_PATTERN, 'Must be a valid CVE ID (e.g. CVE-2021-44228)'),
       },
+      outputSchema: verdictResultSchema,
     },
     async ({ cve_id }) => {
       const normalizedId = cve_id.toUpperCase();
@@ -32,12 +75,8 @@ export function createMcpServer(): McpServer {
       const result = await runVerdict(normalizedId);
 
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
+        structuredContent: result as unknown as Record<string, unknown>,
+        content: [{ type: 'text', text: JSON.stringify(result) }],
       };
     },
   );
