@@ -6,6 +6,8 @@ CONTEXT.md
 CLAUDE_SESSION.md
 GIT.md
 IMPROVEMENTS.md
+TEST_RESULTS.md
+LOGS.txt
 
 # Dependencies
 node_modules
