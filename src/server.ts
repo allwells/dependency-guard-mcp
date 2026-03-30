@@ -1,7 +1,9 @@
-// HTTP server — Express with /health endpoint.
-// MCP tool registration is added in Phase 4.
+// HTTP server — Express with /health and /mcp endpoints.
 
 import express from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { createMcpServer } from "./mcp.js";
 import { logger } from "./utils/logger.js";
 
 const PORT = parseInt(process.env["PORT"] ?? "8000", 10);
@@ -20,7 +22,19 @@ export function startServer(): void {
     });
   });
 
+  // MCP endpoint — stateless HTTP Streaming transport (one server+transport per request).
+  // No-arg constructor omits sessionIdGenerator, which is stateless mode at runtime.
+  // Cast to Transport required: SDK optional property types conflict with exactOptionalPropertyTypes.
+  app.all("/mcp", async (req, res) => {
+    const server = createMcpServer();
+    const transport = new StreamableHTTPServerTransport();
+    await server.connect(transport as Transport);
+    await transport.handleRequest(req, res, req.body);
+    res.on("finish", () => server.close());
+  });
+
   app.listen(PORT, () => {
     logger.info("server", `DependencyGuard MCP listening on port ${PORT}`);
+    logger.info("server", `MCP endpoint: http://localhost:${PORT}/mcp`);
   });
 }
