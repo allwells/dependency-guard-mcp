@@ -1,2 +1,5 @@
 // DependencyGuard MCP — entry point
-// Implementation in progress — see .claude/PLAN.md
+
+import { startServer } from './server.js';
+
+startServer();

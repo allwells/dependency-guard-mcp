@@ -1,0 +1,57 @@
+// EPSS Agent — fetches exploit probability scores from the FIRST.org EPSS API
+
+import type { EpssResult } from '../types/index.js';
+import { fetchWithTimeout } from '../utils/http.js';
+import { logger } from '../utils/logger.js';
+
+const EPSS_BASE_URL = 'https://api.first.org/data/v1/epss';
+
+interface EpssEntry {
+  cve: string;
+  epss: string;
+  percentile: string;
+  date: string;
+}
+
+interface EpssApiResponse {
+  status: string;
+  total: number;
+  data: EpssEntry[];
+}
+
+export async function fetchEpss(cveId: string): Promise<EpssResult> {
+  const url = `${EPSS_BASE_URL}?cve=${encodeURIComponent(cveId)}`;
+  const start = Date.now();
+
+  try {
+    const response = await fetchWithTimeout(url);
+
+    if (!response.ok) {
+      logger.warn('epss-agent', `EPSS returned ${response.status}`, { cveId });
+      return { cve_id: cveId, epss_score: null, percentile: null, date: null };
+    }
+
+    const data = (await response.json()) as EpssApiResponse;
+
+    if (!data.total || !data.data.length) {
+      // Not all CVEs have EPSS scores — this is expected, not an error
+      logger.info('epss-agent', 'No EPSS score available', { cveId });
+      return { cve_id: cveId, epss_score: null, percentile: null, date: null };
+    }
+
+    const entry = data.data[0]!;
+
+    logger.info('epss-agent', 'Fetched EPSS score', { cveId, ms: Date.now() - start });
+
+    return {
+      cve_id: cveId,
+      epss_score: parseFloat(entry.epss),
+      percentile: parseFloat(entry.percentile),
+      date: entry.date,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('epss-agent', 'Fetch failed', { cveId, message });
+    return { cve_id: cveId, epss_score: null, percentile: null, date: null };
+  }
+}
